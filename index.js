@@ -43,7 +43,7 @@ class Worker {
         const job = JSON.parse(JSON.parse(message_));
         try {
           if (this.taskFile !== job.exec.file) { // exec file has changed
-            await this.witeFile(job.exec.name, job.exec.file, 'base64');
+            await Worker.writeFile(job.exec.name, job.exec.file, 'base64');
             delete require.cache[require.resolve(`./${job.exec.name}`)]; // delete Task [cahced]
             await require(`./${job.exec.name}`).checkInstallDeps(job.exec.dependencies);
             this.taskFile = job.exec.file;
@@ -62,7 +62,7 @@ class Worker {
     }
   }
 
-  static async witeFile(file, data, encoding) {
+  static async writeFile(file, data, encoding) {
     return new Promise((resolve, reject) => {
       fs.writeFile(file, data, encoding, (err) => {
         if (err) reject(err);
