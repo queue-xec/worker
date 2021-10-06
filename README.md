@@ -17,19 +17,24 @@ Install my-project with npm
   git clone https://github.com/queue-xec/worker
   cd worker
   npm install 
-  node index.js --setup
+  node worker.js --setup
 ```
 
 
 ```bash 
- node index.js --setup
+ node worker.js --setup
  ```
 Will prompt user to enter following info:
 - IP of  [master](https://github.com/queue-xec/master)
 - PORT listening  [master](https://github.com/queue-xec/master)
 - TOKEN  [master](https://github.com/queue-xec/master) uses
-
 These info will saved and loaded in .env file at root workers folder.
+
+### Run and Wait for jobs : 
+- `node worker.js`
+
+
+### ⚠️ Under development ⚠️
 
 [![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs)
 
