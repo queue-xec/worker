@@ -1,17 +1,19 @@
 /* eslint-disable no-restricted-syntax */
-const { Dealer } = require('zeromq');
+const { Dealer, Push } = require('zeromq');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const crypto = require('crypto');
 const Hash = require('./hash');
+const Queue = require('./queue');
 
 require('dotenv').config();
 
 class Worker {
   constructor(name = 'no_name') {
     this.name = name;
-    this.receiver = null;
     this.hash = new Hash(process.env.token || 'unknown');
+    this.outQueue = null;
+    this.receiver = null;
     this.taskFile = null;
     this.id = Worker.getDeviceID();
     this.jobsDone = 0;
@@ -34,10 +36,15 @@ class Worker {
     const receiver = new Dealer({
       routingId: Worker.genRandomID(10),
     });
+    this.outQueueSocket = new Push();
     const ip = process.env.ip === '' || !process.env.ip ? '127.0.0.1' : process.env.ip;
-    const port = process.env.port || 8080;
+    const port = Number(process.env.port) || 8080;
     console.log(`Connecting to ${ip}:${port}`);
     receiver.connect(`tcp://${ip}:${port}`);
+    console.log(`Connecting to ${ip}:${(port + 1)}`);
+    this.outQueueSocket.connect(`tcp://${ip}:${port + 1}`);
+
+    this.outQueue = new Queue(this.outQueueSocket, 10000);
     this.receiver = receiver;
     this.onNewWork();
   }
@@ -58,6 +65,7 @@ class Worker {
 
         const job = JSON.parse(JSON.parse(message_));
         try {
+          // console.dir(job);
           if (this.taskFile !== job.exec.file) { // exec file has changed
             await Worker.writeFile(job.exec.name, job.exec.file, 'base64');
             delete require.cache[require.resolve(`./${job.exec.name}`)]; // delete Task [cahced]
@@ -76,7 +84,8 @@ class Worker {
               data: result,
             };
             const encrypted = this.hash.encrypt(JSON.stringify(answer));
-            self.receiver.send(JSON.stringify(encrypted));
+            this.outQueue.send(JSON.stringify(encrypted));
+            // self.receiver.send();
             this.jobsDone += 1;
             console.log(`Jobs Completed : ${this.jobsDone}`);
           });
