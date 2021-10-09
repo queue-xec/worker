@@ -66,18 +66,20 @@ class Worker {
           }
           const Task = require(`./${job.exec.name}`);
           const task = new Task(job);
-          const result = await task.run();
-          const answer = {
-            worker: {
-              id: this.id,
-              name: this.name,
-            },
-            data: result,
-          };
-          const encrypted = this.hash.encrypt(JSON.stringify(answer));
-          self.receiver.send(JSON.stringify(encrypted));
-          this.jobsDone += 1;
-          console.log(`Jobs Completed : ${this.jobsDone}`);
+          // const result = await task.run();
+          task.run().then(async (result) => {
+            const answer = {
+              worker: {
+                id: this.id,
+                name: this.name,
+              },
+              data: result,
+            };
+            const encrypted = this.hash.encrypt(JSON.stringify(answer));
+            self.receiver.send(JSON.stringify(encrypted));
+            this.jobsDone += 1;
+            console.log(`Jobs Completed : ${this.jobsDone}`);
+          });
         } catch (e) {
           console.log(e);
         }
