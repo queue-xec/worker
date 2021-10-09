@@ -34,7 +34,8 @@ async function setup() {
 
 (async function () {
   program
-    .option('-s, --setup', 'Setup/Register this worker');
+    .option('-s, --setup', 'Setup/Register this worker')
+    .option('-id', 'Get device unique id');
 
   program.parse(process.argv);
   const options = program.opts();
@@ -42,7 +43,11 @@ async function setup() {
     case (options.setup):
       await setup();
       break;
+    case (options.Id):
+      Worker.getDeviceID();
+      break;
     default:
       const work1 = new Worker('worker 1');
+      break;
   }
 }());

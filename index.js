@@ -1,7 +1,10 @@
 /* eslint-disable no-restricted-syntax */
 const { Dealer } = require('zeromq');
 const fs = require('fs');
+const { execSync } = require('child_process');
+const crypto = require('crypto');
 const Hash = require('./hash');
+
 require('dotenv').config();
 
 class Worker {
@@ -10,8 +13,21 @@ class Worker {
     this.receiver = null;
     this.hash = new Hash(process.env.token || 'unknown');
     this.taskFile = null;
+    this.id = Worker.getDeviceID();
     this.jobsDone = 0;
     this.init();
+  }
+
+  static getDeviceID() {
+    try {
+      const response = execSync('lscpu -J');
+      const parsed = JSON.parse(response);
+      const [flags] = parsed.lscpu.filter(((item) => item.field === 'Flags:'));
+      return crypto.createHash('sha1').update(flags.data).digest('hex');
+    } catch (err) {
+      console.log(err);
+      return null;
+    }
   }
 
   async init() {
@@ -51,7 +67,14 @@ class Worker {
           const Task = require(`./${job.exec.name}`);
           const task = new Task(job);
           const result = await task.run();
-          const encrypted = this.hash.encrypt(JSON.stringify(result));
+          const answer = {
+            worker: {
+              id: this.id,
+              name: this.name,
+            },
+            data: result,
+          };
+          const encrypted = this.hash.encrypt(JSON.stringify(answer));
           self.receiver.send(JSON.stringify(encrypted));
           this.jobsDone += 1;
           console.log(`Jobs Completed : ${this.jobsDone}`);

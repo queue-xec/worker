@@ -1,6 +1,6 @@
 {
   "name": "queue-xec-worker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "child_process": "^1.0.2",
     "commander": "^8.2.0",
     "crypto": "^1.0.1",
     "dotenv": "^10.0.0",
