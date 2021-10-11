@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-syntax */
-const { Dealer, Push } = require('zeromq');
+const { Pull, Push } = require('zeromq');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const crypto = require('crypto');
@@ -11,10 +11,13 @@ require('dotenv').config();
 class Worker {
   constructor(name = 'no_name') {
     this.name = name;
+    this.working = false;
+    this.taskQueue = [];
+    this.taskClass = null;
     this.hash = new Hash(process.env.token || 'unknown');
     this.outQueue = null;
     this.receiver = null;
-    this.taskFile = null;
+    this.taskFile = 'null';
     this.id = Worker.getDeviceID();
     this.jobsDone = 0;
     this.init();
@@ -33,10 +36,10 @@ class Worker {
   }
 
   async init() {
-    const receiver = new Dealer({
-      routingId: Worker.genRandomID(10),
-    });
+    const receiver = new Pull();
     this.outQueueSocket = new Push();
+    this.outQueueSocket.sendHighWaterMark = 1000;
+    this.outQueueSocket.sendTimeout = 0;
     const ip = process.env.ip === '' || !process.env.ip ? '127.0.0.1' : process.env.ip;
     const port = Number(process.env.port) || 8080;
     console.log(`Connecting to ${ip}:${port}`);
@@ -64,35 +67,52 @@ class Worker {
         }
 
         const job = JSON.parse(JSON.parse(message_));
+        if (this.working) {
+          this.taskQueue.push(job);
+          continue;
+        }
         try {
-          // console.dir(job);
-          if (this.taskFile !== job.exec.file) { // exec file has changed
+          this.working = true;
+          if (this.taskFile !== job.exec.file || !this.taskClass) { // exec file has changed
             await Worker.writeFile(job.exec.name, job.exec.file, 'base64');
             delete require.cache[require.resolve(`./${job.exec.name}`)]; // delete Task [cahced]
             await require(`./${job.exec.name}`).checkInstallDeps(job.exec.dependencies);
             this.taskFile = job.exec.file;
+            const Task = require(`./${job.exec.name}`);
+            this.taskClass = new Task();
           }
-          const Task = require(`./${job.exec.name}`);
-          const task = new Task(job);
+
           // const result = await task.run();
-          task.run().then(async (result) => {
-            const answer = {
-              worker: {
-                id: this.id,
-                name: this.name,
-              },
-              data: result,
-            };
-            const encrypted = this.hash.encrypt(JSON.stringify(answer));
-            this.outQueue.send(JSON.stringify(encrypted));
-            // self.receiver.send();
-            this.jobsDone += 1;
-            console.log(`Jobs Completed : ${this.jobsDone}`);
-          });
+          this.doJobs(job);
         } catch (e) {
           console.log(e);
         }
       }
+    }
+  }
+
+  doJobs(job) {
+    this.taskClass.run(job).then(async (result) => {
+      const answer = {
+        worker: {
+          id: this.id,
+          name: this.name,
+        },
+        data: result,
+      };
+      const encrypted = this.hash.encrypt(JSON.stringify(answer));
+      this.outQueue.send(JSON.stringify(encrypted));
+      // self.receiver.send();
+      this.jobsDone += 1;
+      console.log(`Jobs Completed : ${this.jobsDone} jobQueue: ${this.taskQueue.length}`);
+      this.working = false;
+      this.takeJobsFromQueue();
+    });
+  }
+
+  takeJobsFromQueue() {
+    for (let i = 0; i < this.taskQueue.length; i += 1) {
+      this.doJobs(this.taskQueue.shift());
     }
   }
 
