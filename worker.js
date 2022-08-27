@@ -2,7 +2,7 @@ const envfile = require('envfile');
 const fs = require('fs');
 const prompts = require('prompts');
 const { program } = require('commander');
-const Worker = require('./index');
+const Worker = require('./src');
 const { version } = require('./package.json');
 
 program.version(version);
@@ -47,7 +47,7 @@ async function setup() {
       Worker.getDeviceID();
       break;
     default:
-      const work1 = new Worker('worker 1');
+      const work1 = new Worker();
       break;
   }
 }());
