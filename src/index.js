@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const Bugout = require('bugout');
 const events = require('events');
 const path = require('path');
+const { install } = require('lmify');
 const { Logger } = require('./Logger');
 const Crypt = require('./Crypt');
 const { Helper } = require('./Helper');
@@ -37,6 +38,7 @@ class Worker {
 
     this.taskFile = 'null';
     this.jobsDone = 0;
+    this.jobsToDo = []; // push here jobs assigned due working..
     this.init = this.init.bind(this);
     this.onSeen = this.onSeen.bind(this);
     this.requestWork = this.requestWork.bind(this);
@@ -75,23 +77,32 @@ class Worker {
     }, "Respond to ping with 'pong'.");
   }
 
-  requestWork() {
+  async requestWork() {
     if (!this.MasterAdress) throw new Error('cant request work if Master address not discovered yet');
     if (this.working) {
       this.log.warn('requestWork called while working');
       return;
     }
-
+    if (this.jobsToDo.length > 0) {
+      const job = this.jobsToDo.shift(); // pushed jobs are decrypted
+      this.log.debug(`working on queued internal jobs , processing job id :${job.id} remaining: ${this.jobsToDo.length}`);
+      await this.doJobs(job).then((results) => {
+        this.event.emit('shareResults', results);
+      }).catch((e) => {
+        this.log.warn(e.message);
+      });
+      this.event.emit('requestWork');
+      return;
+    }
     this.peer.rpc(this.MasterAdress, 'requestWork', {}, async (masterAns) => {
-      // console.dir(masterAns);
       if (masterAns.task) { // null if no jobs available
-        await this.doJobs(masterAns.task).then((results) => {
+        const job = this.crypt.decrypt(JSON.parse(masterAns.task));// decrypt once incoming job data
+        await this.doJobs(JSON.parse(job)).then((results) => {
           this.event.emit('shareResults', results);
         }).catch((e) => {
           this.log.warn(e.message);
         });
-
-        this.requestWork(); // keep worker in a loop as long Master has jobs :D
+        this.event.emit('requestWork'); // keep worker in a loop as long Master has jobs :D
       }
     });
   }
@@ -113,7 +124,6 @@ class Worker {
 
   onSeen(newPeerAddress) {
     this.log.debug('New peer seen : ', newPeerAddress);
-    // if (!this.MasterAdress) { // this.MasterAdress  is null not known yet
     this.peer.rpc(newPeerAddress, 'isMaster', {}, (ans) => {
       if (ans?.isMaster === 'yes') {
         this.MasterAdress = newPeerAddress;
@@ -121,27 +131,35 @@ class Worker {
         const currentHash = this.checkCurrentAssets();
         this.peer.rpc(this.MasterAdress, 'requestExecAssets', { currentHash }, async (answer) => {
           if (answer.status === 'changed') {
-            // this.installDependencies(answer.dependencies);
+            this.working = true;
+            this.deleteExecAssets();
+            await Worker.installDependencies(answer.dependencies);
             this.saveAssets(answer.files);
             this.execAssets = {
               dependencies: answer.dependencies,
               files: answer.files,
             };
+            const taskFile = this.execAssets.files.filter((file) => file.name === 'task.js');
+            if (taskFile.length === 1) {
+              delete require.cache[require.resolve(`${process.cwd()}${taskFile[0].workerPath}`)]; // delete Task [cahced]
+              const Task = require(`${process.cwd()}${taskFile[0].workerPath}`);
+              this.taskClass = new Task();
+            } else {
+              this.log.warn('Not found task.js file in assets. Is required as its the entry point..');
+            }
             this.checkCurrentAssets();
+            this.working = false;
+            this.event.emit('requestWork');
           }
-          this.event.emit('requestWork');
+          //
           this.log.debug('requestExecAssets answer:', answer);
-          this.log.debug('requestExecAssets this.execAssets:', this.execAssets);
         });
       }
-      // console.dir(ans);
     });
-    // }
-    // this.event.emit('worker_joined', newPeerAddress)
   }
 
   saveAssets(files) {
-    this.log.debug('files', files);
+    this.log.debug('saveAssets', files);
     for (let i = 0; i < files.length; i++) {
       const asset = files[i];
       this.log.debug(`storing asset ${asset.name} in .${asset.workerPath}`);
@@ -153,65 +171,46 @@ class Worker {
       const fileContent = this.crypt.decrypt(asset.content);
       const fileDir = path.dirname(`${process.cwd()}${asset.workerPath}`);
       fs.mkdirSync(fileDir, { recursive: true }); // create dirs recursively
-
-      // this.log.debug();
       fs.writeFileSync(`${process.cwd()}${asset.workerPath}`, fileContent, { encoding: 'utf8' });
-      // this.log.debug(fileContent);
     }
   }
 
-  installDependencies(deps) {
-
+  // maybe instead of deps pushing , push package.json in seperate fixed dir
+  static async installDependencies(deps) {
+    for (let i = 0; i < deps.length; i++) {
+      const lib = deps[i];
+      await install(lib);
+    }
   }
 
-  // const message_ = this.hash.decrypt(JSON.parse(msg));
-  //  const job = JSON.parse(JSON.parse(message_));
   /**
-   *
-   *         if (message_ === 'Decryption failed.' || !message_) {
-          console.error('[Error] Failed to decrypt job data!\n[Hint] Check your token!');
-          return;
-        }
-   *
+   * Description: Promise , instatiate task class reveived from Master and run task with given
+   * job data.
+   * @param {Object} job data
+   * @resolves job results
    */
-
   doJobs(job) {
-    return new Promise((resolve, reject) => { // TODO push jobs to  internal queue
-      if (this.working) reject(new Error(`busy jobID:${job.id}`)); // for jobs arrived when we are busy
-
-      this.working = true;
-      setTimeout(() => {
-        const data = {
-          jobID: job.id,
-          results: [],
-        };
-        this.working = false;
-        resolve(data);
-      }, 50);// Math.floor(Math.random() * (1500 - 50 + 1)) + 50);
-    });
-    // this.taskClass.run(job).then(async (result) => {
-    //   const answer = {
-    //     worker: {
-    //       id: this.id,
-    //       name: this.name,
-    //     },
-    //     data: result,
-    //   };
-    //   const encrypted = this.hash.encrypt(JSON.stringify(answer));
-    //   this.outQueue.send(JSON.stringify(encrypted));
-    //   // self.receiver.send();
-    //   this.jobsDone += 1;
-    //   console.log(`Jobs Completed : ${this.jobsDone} jobQueue: ${this.taskQueue.length}`);
-    //   this.working = false;
-    //   this.takeJobsFromQueue();
-    // });
-  }
-
-  static async writeFile(file, data, encoding) {
     return new Promise((resolve, reject) => {
-      fs.writeFile(file, data, encoding, (err) => {
-        if (err) reject(err);
-        else resolve(data);
+      if (this.working) {
+        this.jobsToDo.push(job);
+        this.jobsDone -= 1;
+        reject(new Error(`busy job id:${job.id}`)); // for jobs arrived when we are busy
+      }
+      this.working = true;
+      this.taskClass.run(job).then(async (result) => {
+        const answer = {
+          jobID: job.id,
+          worker: {
+            id: this.id,
+            name: this.name,
+          },
+          data: result,
+        };
+        const encrypted = this.crypt.encrypt(JSON.stringify(answer));
+        this.working = false;
+        this.jobsDone += 1;
+        this.log.debug(`jobs completed: ${this.jobsDone}`);
+        resolve(JSON.stringify(encrypted));
       });
     });
   }
@@ -228,29 +227,40 @@ class Worker {
       this.log.warn('execAssets not have any files yet');
       return '';
     }
-    this.log.warn('before:', this.execAssets);
     this.execAssets.files = Helper.populateSha256OnAssets(this.execAssets.files);
-    this.log.warn('after:', this.execAssets);
     let unifiedHash = '';
     for (let i = 0; i < this.execAssets.files.length; i++) {
       const file = this.execAssets.files[i];
       unifiedHash += file.sha256;
     }
-    this.log.debug('checkCurrentAssets >  this.execAssets info :', this.execAssets);
     return unifiedHash;
   }
 
   /**
    * Description: In case assets  has changed , this method called to delete currently known
+   * assets and correspondig dirs
    */
-  deleteExecAssets(){+
-    const knwonAssets = this.execAssets.files
+  deleteExecAssets() {
+    const knwonAssets = this.execAssets.files;
+    this.log.debug('deleteExecAssets knwonAssets', knwonAssets);
     for (let i = 0; i < knwonAssets.length; i++) {
-      const file = knwonAssets[i];
-      fs.unlinkSync()
-      
+      const file = knwonAssets[i].workerPath;
+      try {
+        const stats = fs.statSync(`${process.cwd()}${file}`);
+        if (stats.isFile()) {
+          const assetPaths = file.split('/');
+          if (assetPaths.length > 2) { // file  is inside a dir locally
+            this.log.warn('Deleting dir ', `${process.cwd()}/${assetPaths[1]}`);
+            fs.rmSync(`${process.cwd()}/${assetPaths[1]}`, { recursive: true, force: true });
+          } else if (assetPaths.length === 2) { // single file in root of workers dir
+            this.log.warn('Deleting file ', `${process.cwd()}/${assetPaths[1]}`);
+            fs.unlinkSync(`${process.cwd()}${file}`);
+          }
+        }
+      } catch (e) {
+        this.log.debug(e.message);
+      }
     }
-
   }
 }
 module.exports = Worker;
