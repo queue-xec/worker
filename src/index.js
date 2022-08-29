@@ -60,7 +60,7 @@ class Worker {
     this.log.info('Announcing to trackers...');
     this.event.addListener('requestWork', this.requestWork);
     this.event.addListener('shareResults', this.shareResults);
-    setInterval(this.requestWork, 1000);
+    setInterval(this.requestWork, 10000);
     this.registerRPC();
     this.crypt = new Crypt(transferEncryptToken || process.env.transferEncryptToken);
     if (this.crypt.key instanceof Error) {

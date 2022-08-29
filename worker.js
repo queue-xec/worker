@@ -11,24 +11,19 @@ async function setup() {
   const questions = [
     {
       type: 'text',
-      name: 'ip',
-      message: 'Enter server ip?',
-    },
-    {
-      type: 'number',
-      name: 'port',
-      message: 'Enter port:',
-      validate: (port) => (port < 80 ? 'Enter a valid port above 80' : true),
+      name: 'transferEncryptToken',
+      message: 'Enter Transfer Encrypt Token:',
+      validate: (transferEncryptToken) => (transferEncryptToken.length < 32 ? 'Minimum length is 32' : true),
     },
     {
       type: 'text',
       name: 'token',
-      message: 'Servers token [32 length string]',
-      validate: (token) => (token.length < 32 ? 'Minimum length is 32' : true),
+      message: 'Enter Master token :',
+      validate: (token) => (token.length < 20 ? 'Minimum length for token is 20 characters!' : true),
     },
   ];
-  const portQ = await prompts(questions);
-  fs.writeFileSync('./.env', envfile.stringify(portQ));
+  const ans = await prompts(questions);
+  fs.writeFileSync('./.env', envfile.stringify(ans));
   console.log('Settings stored in .env');
 }
 
