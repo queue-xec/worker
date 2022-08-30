@@ -78,7 +78,10 @@ class Worker {
   }
 
   async requestWork() {
-    if (!this.MasterAdress) throw new Error('cant request work if Master address not discovered yet');
+    if (!this.MasterAdress) {
+      this.log.warn('Cant requestWork from Master if his address not discovered yet');
+      return;
+    }
     if (this.working) {
       this.log.warn('requestWork called while working');
       return;
