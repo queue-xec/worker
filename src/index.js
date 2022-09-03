@@ -44,6 +44,8 @@ class Worker {
     this.requestWork = this.requestWork.bind(this);
     this.shareResults = this.shareResults.bind(this);
     this.checkCurrentAssets = this.checkCurrentAssets.bind(this);
+    this.onRpcCall =  this.onRpcCall.bind(this)
+    this.onMessage =this.onMessage.bind(this)
 
     this.peer.on('rpc', this.onRpcCall);
     this.peer.on('seen', this.onSeen);
