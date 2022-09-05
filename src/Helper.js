@@ -6,6 +6,16 @@ class Helper {
   static LocalTime(timestamp) {
     return moment(timestamp).format('DD-MM HH:mm:ss');
   }
+  static sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  static getTimestamp() {
+    return Date.now();
+  }
+
+  static mesurePerf(started){
+    if (!started) return -1;
+    return Helper.getTimestamp() - started
+  }
 
   static getSha256(file) {
     const fileBuffer = fs.readFileSync(file);

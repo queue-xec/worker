@@ -12,6 +12,8 @@ const Crypt = require('./Crypt');
 const { Helper } = require('./Helper');
 require('dotenv').config();
 
+const minRequestWorkWindow = 60;
+
 class Worker {
   constructor({
     token,
@@ -30,6 +32,7 @@ class Worker {
     this.event = new events.EventEmitter();
     this.log = new Logger({ level: loglevel || process.env.LOG_LEVEL });
     this.working = false;
+    this.lastRequestWork = -1; // timestamp , from last request
     this.taskQueue = [];
     this.taskClass = null;
     this.crypt = null; // instatiate in init method
@@ -44,8 +47,8 @@ class Worker {
     this.requestWork = this.requestWork.bind(this);
     this.shareResults = this.shareResults.bind(this);
     this.checkCurrentAssets = this.checkCurrentAssets.bind(this);
-    this.onRpcCall =  this.onRpcCall.bind(this)
-    this.onMessage =this.onMessage.bind(this)
+    this.onRpcCall = this.onRpcCall.bind(this);
+    this.onMessage = this.onMessage.bind(this);
 
     this.peer.on('rpc', this.onRpcCall);
     this.peer.on('seen', this.onSeen);
@@ -91,30 +94,39 @@ class Worker {
     if (this.jobsToDo.length > 0) {
       const job = this.jobsToDo.shift(); // pushed jobs are decrypted
       this.log.debug(`working on queued internal jobs , processing job id :${job.id} remaining: ${this.jobsToDo.length}`);
-      await this.doJobs(job).then((results) => {
+      this.doJobs(job).then((results) => {
+        this.log.debug(`job ${job.id} finished`);
         this.event.emit('shareResults', results);
       }).catch((e) => {
         this.log.warn(e.message);
       });
-      this.event.emit('requestWork');
+
       return;
     }
-    this.peer.rpc(this.MasterAdress, 'requestWork', {}, async (masterAns) => {
-      if (masterAns.task) { // null if no jobs available
-        const job = this.crypt.decrypt(JSON.parse(masterAns.task));// decrypt once incoming job data
-        await this.doJobs(JSON.parse(job)).then((results) => {
-          this.event.emit('shareResults', results);
-        }).catch((e) => {
-          this.log.warn(e.message);
-        });
-        this.event.emit('requestWork'); // keep worker in a loop as long Master has jobs :D
-      }
-    });
+    if (Helper.getTimestamp() - this.lastRequestWork > minRequestWorkWindow) { // prevent unnecessary requests , flooding Master
+      this.lastRequestWork = Helper.getTimestamp(); // track last request for work..
+      this.peer.rpc(this.MasterAdress, 'requestWork', {}, async (masterAns) => {
+        if (masterAns.task) { // null if no jobs available
+          const job = this.crypt.decrypt(JSON.parse(masterAns.task));// decrypt once incoming job data
+          const startedOn = Helper.getTimestamp();
+          this.doJobs(JSON.parse(job)).then((results) => {
+            this.log.debug(`job ${JSON.parse(job).id} finished [${Helper.mesurePerf(startedOn)} ms]`);
+            this.event.emit('shareResults', results);
+          }).catch((e) => {
+            this.log.warn(e.message);
+          });
+        }
+      });
+    }
   }
 
   shareResults(results) {
     if (!this.MasterAdress) throw new Error('cant request work if Master address not discovered yet');
-    this.peer.rpc(this.MasterAdress, 'shareResults', results);
+    this.peer.rpc(this.MasterAdress, 'shareResults', results, () => {
+
+    });
+    this.working = false;
+    this.event.emit('requestWork'); // keep worker in a loop as long Master has jobs :D
   }
 
   /** Called when some of connected peers send us a message */
@@ -138,8 +150,8 @@ class Worker {
           if (answer.status === 'changed') {
             this.working = true;
             this.deleteExecAssets();
-            await Worker.installDependencies(answer.dependencies);
             this.saveAssets(answer.files);
+            await Worker.installDependencies(answer.dependencies);
             this.execAssets = {
               dependencies: answer.dependencies,
               files: answer.files,
@@ -182,7 +194,7 @@ class Worker {
 
   // maybe instead of deps pushing , push package.json in seperate fixed dir
   static async installDependencies(deps) {
-    for (let i = 0; i < deps.length; i++) {
+    for (let i = 0; i < deps.length; i += 1) {
       const lib = deps[i];
       await install(lib);
     }
@@ -197,12 +209,19 @@ class Worker {
   doJobs(job) {
     return new Promise((resolve, reject) => {
       if (this.working) {
-        this.jobsToDo.push(job);
+        const existingJob = this.jobsToDo.filter((QueuedJob) => job.id === QueuedJob.id);
+        if (existingJob.length === 0) {
+          this.log.debug(`queue job ${job.id} due busy state`);
+          this.jobsToDo.push(job);
+        } else {
+          this.log.warn(`Duplicate job attempt to queued again prevented , job ${job.id}..`);
+        }
         this.jobsDone -= 1;
         reject(new Error(`busy job id:${job.id}`)); // for jobs arrived when we are busy
       }
       this.working = true;
-      this.taskClass.run(job).then(async (result) => {
+      this.log.debug(`working on ${job.id}`);
+      this.taskClass.run(job).then((result) => {
         const answer = {
           jobID: job.id,
           worker: {
@@ -212,7 +231,6 @@ class Worker {
           data: result,
         };
         const encrypted = this.crypt.encrypt(JSON.stringify(answer));
-        this.working = false;
         this.jobsDone += 1;
         this.log.debug(`jobs completed: ${this.jobsDone}`);
         resolve(JSON.stringify(encrypted));

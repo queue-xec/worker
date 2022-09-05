@@ -11,5 +11,6 @@ module.exports = {
     ecmaVersion: 12,
   },
   rules: {
+    'max-len': ['error', { code: 140 }],
   },
 };
