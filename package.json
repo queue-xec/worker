@@ -1,6 +1,6 @@
 {
   "name": "queue-xec-worker",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Worker part of queue-xec , can runs jobs - install required dependencies dynamically on demand.All required data with master exchanged with encryption. ",
   "main": "index.js",
   "scripts": {
