@@ -1,5 +1,4 @@
 /* eslint-disable no-restricted-syntax */
-// const { Pull, Push } = require('zeromq');
 const fs = require('fs');
 const Bugout = require('bugout');
 const events = require('events');
@@ -10,7 +9,7 @@ const Crypt = require('./Crypt');
 const { Helper } = require('./Helper');
 require('dotenv').config();
 
-const minRequestWorkWindow = 60;
+const minRequestWorkWindow = 15; // seconds
 
 class Worker {
   constructor({ token, name = 'no_name', loglevel, transferEncryptToken = null } = {}) {
@@ -61,7 +60,12 @@ class Worker {
     this.log.info('Announcing to trackers...');
     this.event.addListener('requestWork', this.requestWork);
     this.event.addListener('shareResults', this.shareResults);
-    setInterval(this.requestWork, 10000);
+    setInterval(() => {
+      // prevent unnecessary requests , flooding Master
+      if (Helper.getTimestamp() - this.lastRequestWork > minRequestWorkWindow * 1000) {
+        this.event.emit('requestWork');
+      }
+    }, 30000);
     this.registerRPC();
     this.crypt = new Crypt(transferEncryptToken || process.env.transferEncryptToken);
     if (this.crypt.key instanceof Error) {
@@ -83,7 +87,7 @@ class Worker {
     );
   }
 
-  async requestWork() {
+  requestWork() {
     if (!this.MasterAdress) {
       this.log.warn('Cant requestWork from Master if his address not discovered yet');
       return;
@@ -172,7 +176,7 @@ class Worker {
             this.checkCurrentAssets();
             this.working = false;
             this.event.emit('requestWork');
-          }
+          } else if (answer.status === 'same' && !this.working) this.event.emit('requestWork');
           //
           this.log.debug('requestExecAssets answer:', answer);
         });

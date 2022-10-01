@@ -32,7 +32,7 @@ const work1 = new Worker({
     name = 'worker_1',
     loglevel, // off -> info -> warn -> error -> debug
     transferEncryptToken = null, // token generated from Master
-    ); // work1 instance is ready for incoming new tasks
+    }); // work1 instance is ready for incoming new tasks
 ```
 
 \*\* file an issue if you think Worker should expose any other functionalities (for example, to have more control) .
