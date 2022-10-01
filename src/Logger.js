@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable class-methods-use-this */
 const FgYellow = '\x1b[33m';
 const FgRed = '\x1b[31m';
@@ -6,7 +7,6 @@ const FgMagenta = '\x1b[35m';
 const FgGreen = '\x1b[32m';
 const Reset = '\x1b[0m';
 
-const ms = require('ms');
 const { Helper } = require('./Helper');
 // LOG levels : Off (0) -> Info  (1) -> Warn (2) -> Error (3) -> Debug (4)
 class Logger {
@@ -51,28 +51,32 @@ class Logger {
    * @param {Object} extra
    *
    */
-  info(msg, extra) { // level 1
+  info(msg, extra) {
+    // level 1
     if (this.level < 1) return;
-    if (extra) msg += ` ${extra}`;
+    let message = msg;
+    if (extra) message += ` ${extra}`;
     if (typeof msg === 'string') {
-      console.log(`${Helper.LocalTime(Date.now())} [INFO] > ${msg}`);
-      this.writeToFile(`${Helper.LocalTime(Date.now())} ${msg}`, extra);
+      console.log(`${Helper.LocalTime(Date.now())} [INFO] > ${message}`);
+      this.writeToFile(`${Helper.LocalTime(Date.now())} ${message}`, extra);
     } else {
-      console.log(`${Helper.LocalTime(Date.now())} [INFO] > `, msg);
-      this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(msg)}`, extra);
+      console.log(`${Helper.LocalTime(Date.now())} [INFO] > `, message);
+      this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(message)}`, extra);
     }
   }
 
-  warn(msg, extra) { // level 2
+  warn(msg, extra) {
+    // level 2
     if (this.level < 2) return;
+    let message = msg;
     if (extra) {
-      if (typeof extra === 'string' && typeof msg === 'string') {
-        msg += ` ${extra}`;
-        console.log(`${Helper.LocalTime(Date.now())} [${FgYellow}WARN${Reset}] > ${FgYellow} ${msg}`, Reset);
-        this.writeToFile(`[WARN] ${msg}`, extra);
+      if (typeof extra === 'string' && typeof message === 'string') {
+        message += ` ${extra}`;
+        console.log(`${Helper.LocalTime(Date.now())} [${FgYellow}WARN${Reset}] > ${FgYellow} ${message}`, Reset);
+        this.writeToFile(`[WARN] ${message}`, extra);
       } else {
-        console.log(`${Helper.LocalTime(Date.now())} [WARN] > ${FgRed} ${msg} `, extra);
-        this.writeToFile(`[WARN] ${JSON.stringify(msg)}`, extra);
+        console.log(`${Helper.LocalTime(Date.now())} [WARN] > ${FgRed} ${message} `, extra);
+        this.writeToFile(`[WARN] ${JSON.stringify(message)}`, extra);
       }
       return;
     }
@@ -85,48 +89,52 @@ class Logger {
     }
   }
 
-  error(msg, extra) { // level 3
+  error(msg, extra) {
+    // level 3
     if (this.level < 3) return;
-    if (extra) msg += ` ${extra}`;
-    if (typeof msg === 'string') console.log(`${Helper.LocalTime(Date.now())} [ERROR] > ${FgRed} ${msg}`, Reset);
-    else console.log(`${Helper.LocalTime(Date.now())} [ERROR] > ${FgRed} `, msg);
+    let message = msg;
+    if (extra) message += ` ${extra}`;
+    if (typeof msg === 'string') console.log(`${Helper.LocalTime(Date.now())} [ERROR] > ${FgRed} ${message}`, Reset);
+    else console.log(`${Helper.LocalTime(Date.now())} [ERROR] > ${FgRed} `, message);
   }
 
-  fatal(msg, extra) { //
+  fatal(msg, extra) {
     if (!msg) {
       console.log(`[FATAL] > ${FgRed} `, 'Unknown msg passed to Logger');
       process.exit(-1);
       return;
     }
+    const message = msg;
     if (extra) {
-      if (typeof msg === 'string') console.log(`[FATAL] > ${FgRed} ${msg}`, extra, Reset);
-      else console.log(`[FATAL] > ${FgRed} `, msg, extra, Reset);
+      if (typeof message === 'string') console.log(`[FATAL] > ${FgRed} ${message}`, extra, Reset);
+      else console.log(`[FATAL] > ${FgRed} `, message, extra, Reset);
       process.exit(-1);
     }
-    if (typeof msg === 'string') console.log(`[FATAL] > ${FgRed} ${msg}`, Reset);
-    else console.log(`[FATAL] > ${FgRed} `, msg, Reset);
+    if (typeof message === 'string') console.log(`[FATAL] > ${FgRed} ${message}`, Reset);
+    else console.log(`[FATAL] > ${FgRed} `, message, Reset);
     process.exit(-1);
   }
 
   debug(msg, extra) {
     if (this.level < 4 || !msg) return;
-    if (typeof msg === 'string') {
+    const message = msg;
+    if (typeof message === 'string') {
       if (extra) {
-        console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${msg}`, extra);
-        this.writeToFile(`${Helper.LocalTime(Date.now())} ${msg}`, extra);
+        console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${message}`, extra);
+        this.writeToFile(`${Helper.LocalTime(Date.now())} ${message}`, extra);
         return;
       }
-      console.debug(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${msg}`);
-      this.writeToFile(`${Helper.LocalTime(Date.now())} ${msg}`, extra);
+      console.debug(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${message}`);
+      this.writeToFile(`${Helper.LocalTime(Date.now())} ${message}`, extra);
     } else {
       if (extra) {
-        console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${msg}`, extra);
+        console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}]> ${message}`, extra);
         this.writeToFile(msg, extra);
-        this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(msg)}`, extra);
+        this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(message)}`, extra);
         return;
       }
-      console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}] > `, msg);
-      this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(msg)}`, extra);
+      console.log(`${Helper.LocalTime(Date.now())} [${FgMagenta}DEBUG${Reset}] > `, message);
+      this.writeToFile(`${Helper.LocalTime(Date.now())} ${JSON.stringify(message)}`, extra);
     }
   }
 

@@ -3,3 +3,5 @@ plugin_packages
 
 .env
 *.log
+
+workplace

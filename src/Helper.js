@@ -6,15 +6,18 @@ class Helper {
   static LocalTime(timestamp) {
     return moment(timestamp).format('DD-MM HH:mm:ss');
   }
-  static sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  static sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   static getTimestamp() {
     return Date.now();
   }
 
-  static mesurePerf(started){
+  static mesurePerf(started) {
     if (!started) return -1;
-    return Helper.getTimestamp() - started
+    return Helper.getTimestamp() - started;
   }
 
   static getSha256(file) {
@@ -25,7 +28,7 @@ class Helper {
   }
 
   static populateSha256OnAssets(arr) {
-    for (let i = 0; i < arr.length; i++) {
+    for (let i = 0; i < arr.length; i += 1) {
       const file = arr[i];
       file.sha256 = Helper.getSha256(`${process.cwd()}${file.workerPath}`);
     }

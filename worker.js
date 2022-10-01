@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const envfile = require('envfile');
 const fs = require('fs');
 const prompts = require('prompts');
@@ -27,22 +28,16 @@ async function setup() {
   console.log('Settings stored in .env');
 }
 
-(async function () {
-  program
-    .option('-s, --setup', 'Setup/Register this worker')
-    .option('-id', 'Get device unique id');
+(async function init() {
+  program.option('-s, --setup', 'Setup/Register this worker');
 
   program.parse(process.argv);
   const options = program.opts();
-  switch (true) {
-    case (options.setup):
-      await setup();
-      break;
-    case (options.Id):
-      Worker.getDeviceID();
-      break;
-    default:
-      const work1 = new Worker();
-      break;
+  if (options.setup) {
+    await setup();
+    return;
   }
-}());
+
+  const worker = new Worker();
+  worker.requestWork();
+})();

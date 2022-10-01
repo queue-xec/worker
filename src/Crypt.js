@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const crypto = require('crypto');
 
 class Crypt {
@@ -11,7 +12,10 @@ class Crypt {
       const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.getKey()), this.getIv());
       let encrypted = cipher.update(text);
       encrypted = Buffer.concat([encrypted, cipher.final()]);
-      return { iv: this.getIv().toString('hex'), encryptedData: encrypted.toString('hex') };
+      return {
+        iv: this.getIv().toString('hex'),
+        encryptedData: encrypted.toString('hex'),
+      };
     } catch (e) {
       if (e.message.includes('Invalid key length')) {
         console.log('Crypt:', e.message, ' pick a 32 length key');
