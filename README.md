@@ -1,4 +1,5 @@
 # Worker
+[![Publish to NPM](https://github.com/queue-xec/worker/actions/workflows/publish_npm.yml/badge.svg)](https://github.com/queue-xec/worker/actions/workflows/publish_npm.yml)
 
 As the name itself states it , Worker is the task processor node. After initial connection , Worker waiting for new tasks.
 
