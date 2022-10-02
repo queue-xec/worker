@@ -1,13 +1,13 @@
 {
   "name": "queue-xec-worker",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Worker part of queue-xec , can runs jobs - install required dependencies dynamically on demand.All required data with master exchanged with encryption. ",
   "main": "index.js",
   "scripts": {
     "test": "jest --forceExit --passWithNoTests",
     "test:dev": "jest --watch ",
     "lint": "eslint ",
-    "format": "prettier --write .",
+    "format": "prettier --write ",
     "prepare": "node -e \"if (process.env.NODE_ENV !== 'production'){process.exit(1)} \" || husky install"
   },
   "keywords": [],
