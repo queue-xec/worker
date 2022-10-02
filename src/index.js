@@ -37,6 +37,8 @@ class Worker {
     this.taskFile = 'null';
     this.jobsDone = 0;
     this.jobsToDo = []; // push here jobs assigned due working..
+    this.getBatch = Object.prototype.hasOwnProperty.call(process.env, 'getBatch') ?  process.env.getBatch  : false
+    this.batchSize =  Object.prototype.hasOwnProperty.call(process.env, 'batchSize') ?  process.env.batchSize  :  5
     this.init = this.init.bind(this);
     this.onSeen = this.onSeen.bind(this);
     this.requestWork = this.requestWork.bind(this);
@@ -112,8 +114,8 @@ class Worker {
     if (Helper.getTimestamp() - this.lastRequestWork > minRequestWorkWindow) {
       // prevent unnecessary requests , flooding Master
       this.lastRequestWork = Helper.getTimestamp(); // track last request for work..
-      this.peer.rpc(this.MasterAdress, 'requestWork', {}, async (masterAns) => {
-        if (masterAns.task) {
+      this.peer.rpc(this.MasterAdress, 'requestWork', { getBatch: this.getBatch , batchSize: this.batchSize }, async (masterAns) => {
+        if (masterAns.task) { // single task
           // null if no jobs available
           const job = this.crypt.decrypt(JSON.parse(masterAns.task)); // decrypt once incoming job data
           const startedOn = Helper.getTimestamp();
@@ -125,6 +127,14 @@ class Worker {
             .catch((e) => {
               this.log.warn(e.message);
             });
+        }
+        if (masterAns.batchTasks ){ // received batch tasks
+          masterAns.batchTasks.forEach((encryptedTask)=>{
+            const job = this.crypt.decrypt(JSON.parse(encryptedTask));
+            this.jobsToDo.push(JSON.parse(job)) // push decrypted job to internal queue
+          })
+          // this.log.fatal(this.jobsToDo)
+          this.event.emit('requestWork');
         }
       });
     }

@@ -5,6 +5,9 @@ const Worker = require('../index');
 process.env.transferEncryptToken = '00000000000000000000000000000000';
 process.env.token = 'demoCHannel0';
 process.env.LOG_LEVEL = 'debug';
+process.env.getBatch=true;
+process.env.batchSize=10;
+
 
 async function run() {
   // eslint-disable-next-line no-unused-vars
