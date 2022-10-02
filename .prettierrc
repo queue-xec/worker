@@ -2,5 +2,5 @@
   "proseWrap": "never",
   "singleQuote": true,
   "trailingComma": "es5",
-  "printWidth": 130
+  "printWidth": 140
 }

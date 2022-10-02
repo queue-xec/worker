@@ -37,8 +37,8 @@ class Worker {
     this.taskFile = 'null';
     this.jobsDone = 0;
     this.jobsToDo = []; // push here jobs assigned due working..
-    this.getBatch = Object.prototype.hasOwnProperty.call(process.env, 'getBatch') ?  process.env.getBatch  : false
-    this.batchSize =  Object.prototype.hasOwnProperty.call(process.env, 'batchSize') ?  process.env.batchSize  :  5
+    this.getBatch = Object.prototype.hasOwnProperty.call(process.env, 'getBatch') ? process.env.getBatch : false;
+    this.batchSize = Object.prototype.hasOwnProperty.call(process.env, 'batchSize') ? process.env.batchSize : 5;
     this.init = this.init.bind(this);
     this.onSeen = this.onSeen.bind(this);
     this.requestWork = this.requestWork.bind(this);
@@ -114,9 +114,9 @@ class Worker {
     if (Helper.getTimestamp() - this.lastRequestWork > minRequestWorkWindow) {
       // prevent unnecessary requests , flooding Master
       this.lastRequestWork = Helper.getTimestamp(); // track last request for work..
-      this.peer.rpc(this.MasterAdress, 'requestWork', { getBatch: this.getBatch , batchSize: this.batchSize }, async (masterAns) => {
-        if (masterAns.task) { // single task
-          // null if no jobs available
+      this.peer.rpc(this.MasterAdress, 'requestWork', { getBatch: this.getBatch, batchSize: this.batchSize }, async (masterAns) => {
+        if (masterAns.task) {
+          // single task
           const job = this.crypt.decrypt(JSON.parse(masterAns.task)); // decrypt once incoming job data
           const startedOn = Helper.getTimestamp();
           this.doJobs(JSON.parse(job))
@@ -128,11 +128,12 @@ class Worker {
               this.log.warn(e.message);
             });
         }
-        if (masterAns.batchTasks ){ // received batch tasks
-          masterAns.batchTasks.forEach((encryptedTask)=>{
+        if (masterAns.batchTasks) {
+          // received batch tasks
+          masterAns.batchTasks.forEach((encryptedTask) => {
             const job = this.crypt.decrypt(JSON.parse(encryptedTask));
-            this.jobsToDo.push(JSON.parse(job)) // push decrypted job to internal queue
-          })
+            this.jobsToDo.push(JSON.parse(job)); // push decrypted job to internal queue
+          });
           // this.log.fatal(this.jobsToDo)
           this.event.emit('requestWork');
         }
@@ -208,7 +209,9 @@ class Worker {
       const fileContent = this.crypt.decrypt(asset.content);
       const fileDir = path.dirname(`${process.cwd()}${asset.workerPath}`);
       fs.mkdirSync(fileDir, { recursive: true }); // create dirs recursively
-      fs.writeFileSync(`${process.cwd()}${asset.workerPath}`, fileContent, { encoding: 'utf8' });
+      fs.writeFileSync(`${process.cwd()}${asset.workerPath}`, fileContent, {
+        encoding: 'utf8',
+      });
     }
   }
 
@@ -297,7 +300,10 @@ class Worker {
           if (assetPaths.length > 2) {
             // file  is inside a dir locally
             this.log.warn('Deleting dir ', `${process.cwd()}/${assetPaths[1]}`);
-            fs.rmSync(`${process.cwd()}/${assetPaths[1]}`, { recursive: true, force: true });
+            fs.rmSync(`${process.cwd()}/${assetPaths[1]}`, {
+              recursive: true,
+              force: true,
+            });
           } else if (assetPaths.length === 2) {
             // single file in root of workers dir
             this.log.warn('Deleting file ', `${process.cwd()}/${assetPaths[1]}`);
