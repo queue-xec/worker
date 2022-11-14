@@ -215,12 +215,18 @@ class Worker {
     }
   }
 
-  // maybe instead of deps pushing , push package.json in seperate fixed dir
+  /**
+   * Description: Install all dependencies anounced by Master
+   */
   static async installDependencies(deps) {
     for (let i = 0; i < deps.length; i += 1) {
       const lib = deps[i];
-      // eslint-disable-next-line no-await-in-loop
-      await install(lib);
+      try {
+        require.resolve(lib);
+      } catch {
+        // eslint-disable-next-line no-await-in-loop
+        await install(lib);
+      }
     }
   }
 
