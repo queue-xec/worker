@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "big.js": "^6.2.1",
-    "moment": "^2.29.4"
+    "moment": "^2.29.4",
+    "puppeteer": "^22.1.0"
   }
 }
