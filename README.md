@@ -35,7 +35,7 @@ const work1 = new Worker({
     }); // work1 instance is ready for incoming new tasks
 ```
 
-\*\* file an issue if you think Worker should expose any other functionalities (for example, to have more control) .
+** file an issue if you think Worker should expose any other functionalities (for example, to have more control) .
 
 ```bash
   git clone https://github.com/queue-xec/worker
@@ -57,6 +57,29 @@ These info will saved and loaded (later) in .env file at root workers folder.
 ### Run and Wait for jobs :
 
 - `node worker.js`
+
+### Task File Structure
+
+The worker expects a `task.js` file to be provided by the Master. This file should export a class with a `run` method that accepts a `job` object as an argument and returns a Promise that resolves with the job's results.
+
+Example `task.js`:
+
+```javascript
+class Task {
+  async run(job) {
+    // Process the job data
+    console.log('Processing job:', job.id);
+    // ... perform some work ...
+    return {
+      jobId: job.id,
+      status: 'completed',
+      result: 'some_result',
+    };
+  }
+}
+
+module.exports = Task;
+```
 
 [![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?) ](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs)
 
