@@ -6,6 +6,6 @@
   "dependencies": {
     "big.js": "^6.2.1",
     "moment": "^2.29.4",
-    "puppeteer": "^22.1.0"
+    "puppeteer": "^24.12.1"
   }
 }
