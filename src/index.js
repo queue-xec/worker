@@ -28,6 +28,7 @@ class Worker {
     this.log = new Logger({ level: loglevel || process.env.LOG_LEVEL });
     this.working = false;
     this.lastRequestWork = -1; // timestamp , from last request
+    this.masterHadNoWork = false; // last requestWork answer had no task
     this.taskQueue = [];
     this.taskClass = null;
     this.crypt = null; // instatiate in init method
@@ -111,10 +112,14 @@ class Worker {
         });
       return;
     }
-    if (Helper.getTimestamp() - this.lastRequestWork > minRequestWorkWindow) {
-      // prevent unnecessary requests , flooding Master
+    // Throttle only while the Master has no work: when the last request came
+    // back empty, wait minRequestWorkWindow seconds before asking again. While
+    // jobs keep coming, ask again right away so throughput isn't capped.
+    const requestWindow = this.masterHadNoWork ? minRequestWorkWindow * 1000 : 0;
+    if (Helper.getTimestamp() - this.lastRequestWork > requestWindow) {
       this.lastRequestWork = Helper.getTimestamp(); // track last request for work..
       this.peer.rpc(this.MasterAdress, 'requestWork', { getBatch: this.getBatch, batchSize: this.batchSize }, async (masterAns) => {
+        this.masterHadNoWork = !masterAns?.task && !masterAns?.batchTasks?.length;
         if (masterAns.task) {
           // single task
           const job = this.crypt.decrypt(JSON.parse(masterAns.task)); // decrypt once incoming job data
