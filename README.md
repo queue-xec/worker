@@ -35,7 +35,7 @@ const work1 = new Worker({
     }); // work1 instance is ready for incoming new tasks
 ```
 
-** file an issue if you think Worker should expose any other functionalities (for example, to have more control) .
+\*\* file an issue if you think Worker should expose any other functionalities (for example, to have more control) .
 
 ```bash
   git clone https://github.com/queue-xec/worker
@@ -70,87 +70,50 @@ These info will saved and loaded (later) in .env file at root workers folder.
 
 ## API Documentation
 
-### `Worker` Class (src/index.js)
+### Public API
 
-The `Worker` class is the core component of the task processor node. It handles connections to the Master, requests and processes tasks, and manages task assets and dependencies.
-
-**Constructor:**
+The package exports a single class, `Worker`:
 
 ```javascript
-new Worker({ token, name = 'no_name', loglevel, transferEncryptToken = null })
+const Worker = require('queue-xec-worker');
+
+const worker = new Worker({ token, name = 'no_name', loglevel, transferEncryptToken = null });
 ```
 
-- `token` (String): Required. Token generated from the Master for peer connection. Can be passed in the constructor or as an environment variable `token`.
-- `name` (String): Optional. The name of the worker instance. Defaults to `'no_name'`.
-- `loglevel` (String): Optional. The logging level for the worker. Accepted values: `'off'`, `'info'`, `'warn'`, `'error'`, `'debug'`.
-- `transferEncryptToken` (String): Optional. Token generated from the Master to secure data communications.
+- `token` (String): Required. Token generated from the Master, used for the peer connection. Falls back to the `token` environment variable.
+- `name` (String): Optional. Name of this worker instance. Defaults to `'no_name'`.
+- `loglevel` (String): Optional. One of `'off'`, `'info'`, `'warn'`, `'error'`, `'debug'`. Falls back to the `LOG_LEVEL` environment variable, then `'off'`.
+- `transferEncryptToken` (String): Required. Token generated from the Master to encrypt data exchanged with it (32 characters, used as an AES-256 key). Falls back to the `transferEncryptToken` environment variable; the worker exits if neither is set.
 
-**Methods:**
+The worker starts itself on construction: it connects to the network, waits until it discovers the Master, fetches task assets and dependencies, then keeps requesting and processing jobs for as long as the Master has work. There are no methods you need to call.
 
-- `init(transferEncryptToken)`: Asynchronously initializes the worker, sets up event listeners, registers RPC calls, and instantiates the `Crypt` class.
-- `registerRPC()`: Registers RPC (Remote Procedure Call) methods with the peer. Currently, it responds to 'ping' calls with 'pong'.
-- `requestWork()`: Requests new tasks from the Master. If the worker is busy or the Master's address is not yet discovered, it will not make a request. It also handles processing of internally queued jobs.
-- `shareResults(results)`: Shares the results of a completed job back to the Master.
-- `onMessage(address, message)`: Callback function executed when a connected peer sends a message.
-- `onRpcCall(pk, call)`: Callback function executed when an RPC call is received from a peer.
-- `onSeen(newPeerAddress)`: Callback function executed when a new peer is discovered. It checks if the new peer is the Master and requests execution assets if so.
-- `saveAssets(files)`: Saves the received task asset files to the local file system.
-- `static installDependencies(deps)`: Asynchronously installs all announced dependencies from the Master.
-- `doJobs(job)`: Processes a given job. It instantiates the task class received from the Master and runs the task with the provided job data. Returns a Promise that resolves with the job results.
-- `checkCurrentAssets()`: Reads all execution asset files, calculates their SHA256 hashes, updates `this.execAssets.files`, and returns a unified hash of all known hashes.
-- `deleteExecAssets()`: Deletes currently known assets and their corresponding directories in case assets have changed.
+Optional environment variables:
 
-### `Logger` Class (src/Logger.js)
+- `getBatch`: when set, ask the Master for jobs in batches instead of one at a time.
+- `batchSize`: number of jobs per batch request. Defaults to `5`.
 
-The `Logger` class provides logging functionalities with different levels.
+### Internals (for contributors)
 
-**Constructor:**
+The classes and methods below are not exported and may change without notice.
 
-```javascript
-new Logger({ level = 'off', writeStream = false } = {})
-```
+**`Worker` (src/index.js)**
 
-- `level` (String): Optional. The logging level. Accepted values: `'off'`, `'info'`, `'warn'`, `'error'`, `'debug'`. Defaults to `'off'`.
-- `writeStream` (WritableStream): Optional. A writable stream to which log messages will be written. Defaults to `false`.
+- `init(transferEncryptToken)`: called from the constructor. Logs the peer address, wires the internal `requestWork` / `shareResults` events, starts a 30 s timer that polls for work, registers RPC handlers and creates the `Crypt` instance.
+- `registerRPC()`: registers the `ping` RPC, which answers with `{ ...args, pong: true }`.
+- `requestWork()`: processes internally queued jobs first, otherwise asks the Master for new work (rate limited). Does nothing while busy or before the Master is discovered.
+- `shareResults(results)`: sends job results to the Master and requests more work.
+- `onSeen(address)`, `onMessage(address, message)`, `onRpcCall(pk, call)`: peer event callbacks. `onSeen` checks whether the new peer is the Master and, if so, requests the execution assets.
+- `saveAssets(files)`: decrypts received asset files and writes them under the worker's working directory.
+- `static installDependencies(deps)`: installs any announced dependency that cannot already be resolved.
+- `doJobs(job)`: instantiates the task class received from the Master and runs it with the job data. Returns a Promise of the results.
+- `checkCurrentAssets()`: recomputes the SHA-256 of every known asset file and returns all the hashes concatenated into one string (empty string if there are no assets yet).
+- `deleteExecAssets()`: deletes the currently known asset files and their directories, used when the Master's assets have changed.
 
-**Methods:**
+**`Crypt` (src/Crypt.js)**: AES-256-CBC with the `transferEncryptToken` as key.
 
-- `translateToCode(level)`: Converts a human-readable log level string to its corresponding numerical code.
-- `info(msg, extra)`: Prints messages for the 'info' log level.
-- `warn(msg, extra)`: Prints messages for the 'warn' log level.
-- `error(msg, extra)`: Prints messages for the 'error' log level.
-- `fatal(msg, extra)`: Prints messages for the 'fatal' log level and exits the process.
-- `debug(msg, extra)`: Prints messages for the 'debug' log level.
-- `writeToFile(msg, extra = '')`: Writes log messages to the configured `writeStream` if available.
+- `encrypt(text)`: returns `{ iv, encryptedData }` (both hex strings), or `null` on failure (for example a key that is not 32 bytes).
+- `decrypt({ iv, encryptedData })`: takes the object produced by `encrypt` and returns the plaintext string, or `null` on failure.
 
-### `Helper` Class (src/Helper.js)
+**`Logger` (src/Logger.js)**: console logger with levels `off` < `info` < `warn` < `error` < `debug`. Provides `info`, `warn`, `error`, `debug`, and `fatal`, which logs and then exits the process.
 
-The `Helper` class provides utility functions.
-
-**Static Methods:**
-
-- `static LocalTime(timestamp)`: Formats a given timestamp into 'DD-MM HH:mm:ss' local time.
-- `static sleep(ms)`: Returns a Promise that resolves after a specified number of milliseconds.
-- `static getTimestamp()`: Returns the current timestamp.
-- `static mesurePerf(started)`: Calculates the performance difference from a given start timestamp.
-- `static getSha256(file)`: Calculates the SHA256 hash of a given file.
-- `static populateSha256OnAssets(arr)`: Populates the SHA256 hash for each asset in an array of asset objects.
-
-### `Crypt` Class (src/Crypt.js)
-
-The `Crypt` class provides encryption and decryption functionalities using AES-256-cbc.
-
-**Constructor:**
-
-```javascript
-new Crypt(key)
-```
-
-- `key` (String): Required. The encryption key (must be 32 characters long).
-
-**Methods:**
-
-- `encrypt(text)`: Encrypts the given text using AES-256-cbc. Returns an object containing the initialization vector (iv) and the encrypted data.
-- `decrypt(text)`: Decrypts the given text using AES-256-cbc.
-- `getKey()`: Returns the encryption key.
-- `getIv()`: Returns the initialization vector.
+**`Helper` (src/Helper.js)**: static utilities: `LocalTime`, `sleep`, `getTimestamp`, `mesurePerf`, `getSha256(file)`, `populateSha256OnAssets(assets)`.
