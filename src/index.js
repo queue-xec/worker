@@ -82,7 +82,7 @@ class Worker {
       (pk, args, cb) => {
         // eslint-disable-next-line no-param-reassign
         args.pong = true;
-        this.log.fatal('ping');
+        this.log.debug('ping');
         cb(args);
       },
       "Respond to ping with 'pong'."

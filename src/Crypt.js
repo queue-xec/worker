@@ -9,11 +9,15 @@ class Crypt {
 
   encrypt(text) {
     try {
-      const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.getKey()), this.getIv());
+      // CBC needs a fresh random IV per message; reusing one under the same key
+      // leaks whether two plaintexts share a prefix. The IV travels with the
+      // ciphertext, so decrypt() never relies on this.iv.
+      this.iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.getKey()), this.iv);
       let encrypted = cipher.update(text);
       encrypted = Buffer.concat([encrypted, cipher.final()]);
       return {
-        iv: this.getIv().toString('hex'),
+        iv: this.iv.toString('hex'),
         encryptedData: encrypted.toString('hex'),
       };
     } catch (e) {
